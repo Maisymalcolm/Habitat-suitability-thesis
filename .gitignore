@@ -1,0 +1,7 @@
+*
+!*/
+!*.R
+!*.qmd
+!*.Rmd
+!.gitignore
+Ollivier R data/
