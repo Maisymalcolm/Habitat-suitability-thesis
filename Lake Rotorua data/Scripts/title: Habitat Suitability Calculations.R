@@ -65,6 +65,8 @@ wq_scored <- wq_scored %>%
     HSI = pmin(SI_DO, SI_Temp)     # limiting-factor approach: worst variable controls habitat quality
     
   ) 
+# Save wq_scored df as an object
+saveRDS(wq_scored, 'wq_scored.rds')
 
 ## (08.10.26)
 # 4) Join to hypsograph's Area_at_Depth and pecentage of total lake area (at depth)
@@ -84,7 +86,7 @@ wq_joined <- wq_joined %>%
            Month %in% c("Jun", "Jul", "Aug") ~ "Winter",
            Month %in% c("Sep", "Oct", "Nov") ~ "Spring"
          ))
-
+saveRDS(wq_joined, 'wq_joined.rds')
 # ----------------------------------------------------------------------------------------------------------------------
 # 6) (12.10.26) Creating daily habitat availability, including weighted usable area 
 # (partial credit to depth bands included i.e weighs differently if score was HS 0.25 vs 0.75) 
