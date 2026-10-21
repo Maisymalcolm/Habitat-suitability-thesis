@@ -6,7 +6,7 @@
 list.files("lernzmp")
 
 
-metadata <- read.csv("lernzmp/LERNZmp_lake_metadata.csv")
+metadata <- read.csv("Lake Rotorua data/lernzmp/LERNZmp_lake_metadata.csv")
 head(metadata)
 
 dplyr::glimpse(metadata) ## This seems to just have a lot of general data about all the lakes in the LERNZmp platform. 
@@ -18,7 +18,7 @@ data(package = "AEME")
 
 ## (30.09.2026) Now I'll load the AEME object (which contains lake metadata, model output and model controls). Then i'll be able to use the lake section to see the lake metadata
 #| label: lernzmp-load-aeme
-aeme <- readRDS("lernzmp/LID11133.rds")
+aeme <- readRDS("Lake Rotorua data/lernzmp/LID11133.rds")
 class(aeme)
 aeme # By running this alone you can see the contents of the object.
 
@@ -63,6 +63,9 @@ hyps_clean
 ## (01.10.2026) 
 head(hyps_clean)
 
+# Save hyps_clean data as an RDS (a saved df)
+saveRDS(hyps_clean, "hyps_clean.rds") 
+
 # Plotting the hyps_clean hypsographic curve (converted negative values to positve; remove postive values above 0; produces area at depth values)
 ggplot(hyps_clean, aes(x = area, y = depth)) +
   geom_hline(yintercept = 0, linetype = "dashed") +
@@ -78,13 +81,9 @@ print(hyps_clean, n = Inf)
 
 library(knitr)
 
-hyps_clean <- hyps_clean %>%  # Adding a column to represent percentage of total lake area that each band makes up
+# Adding a column to represent percentage of total lake area that each band makes up
+hyps_clean <- hyps_clean %>%  
   mutate(Pct_of_surface_area = round(Area_at_Depth / max(area) * 100, 1))
-
-hyps_clean %>%
-  kable(col.names = c("Depth (m)", "Area (m²)", "Area at Depth (m²)"),
-        digits = 0,
-        caption = "Hypsographic table for Lake Rotorua")
 
 names(hyps_clean)
 
