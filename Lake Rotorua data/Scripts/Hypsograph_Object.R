@@ -49,7 +49,7 @@ library(dplyr)
 hyps_clean <- hypsographdata %>%
   filter(depth <= 0) %>%                        # keep only true below-surface points
   mutate(depth = abs(depth)) %>%                 # now convert to positive depth
-  filter(depth <= 30) %>%                        # This line sets the max depth to 30m
+  filter(depth <= 25) %>%                        # This line sets the max depth to 30m
   mutate(depth = round(depth)) %>%
   group_by(depth) %>%
   summarise(area = mean(area), .groups = "drop") %>%
@@ -62,9 +62,6 @@ hyps_clean
 
 ## (01.10.2026) 
 head(hyps_clean)
-
-# Save hyps_clean data as an RDS (a saved df)
-saveRDS(hyps_clean, "hyps_clean.rds") 
 
 # Plotting the hyps_clean hypsographic curve (converted negative values to positve; remove postive values above 0; produces area at depth values)
 ggplot(hyps_clean, aes(x = area, y = depth)) +
@@ -86,6 +83,9 @@ hyps_clean <- hyps_clean %>%
   mutate(Pct_of_surface_area = round(Area_at_Depth / max(area) * 100, 1))
 
 names(hyps_clean)
+
+# Save hyps_clean data as an RDS (a saved df)
+saveRDS(hyps_clean, "hyps_clean.rds") 
 
 hyps_clean %>%
   kable(col.names = c("Depth (m)", "Area (m²)", "Area at Depth (m²)", "% of Surface Area"),
