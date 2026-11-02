@@ -49,7 +49,7 @@ library(dplyr)
 hyps_clean <- hypsographdata %>%
   filter(depth <= 0) %>%                        # keep only true below-surface points
   mutate(depth = abs(depth)) %>%                 # now convert to positive depth
-  filter(depth <= 25) %>%                        # This line sets the max depth to 30m
+  filter(depth <= 25) %>%                        # This line sets the max depth to 25m
   mutate(depth = round(depth)) %>%
   group_by(depth) %>%
   summarise(area = mean(area), .groups = "drop") %>%

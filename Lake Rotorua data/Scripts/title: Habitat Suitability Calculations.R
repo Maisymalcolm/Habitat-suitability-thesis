@@ -114,3 +114,4 @@ ggplot(wq_joined, aes(date, depth_m, fill = HSI)) +
 # Big purple block in 09/2022 is missing values for a couple months. Need to fix
 #Missing blanks in heat map? Fix
 # Purple blocks at the 1m in 2022/2023 from missing 1m values. Need to tidy
+
