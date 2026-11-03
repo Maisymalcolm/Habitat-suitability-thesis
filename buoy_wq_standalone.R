@@ -8,6 +8,11 @@
 url <- "https://github.com/limnotrack/f_rotorua/releases/download/v0.0.1/rotorua_data_qc.zip"
 zip_file <- "rotorua_data_qc.zip"
 
+library(dplyr)
+library(tidyr)
+library(readr)
+library(lubridate)
+
 # Functions ----
 
 generate_var_ref <- function(var, z_relative, reference = "d") {
@@ -120,7 +125,7 @@ buoy_wq <- buoy_wq_data(buoy_data, wq_vars = wq_vars)
 head(buoy_wq)
 
 
-# Okataina data
+# ----------- Okataina data -------------------------------------------------------------------------------------------------------
 # R packages for accessing LERNZmp data - https://limnotrack.shinyapps.io/LERNZmp/
 remotes::install_github("limnotrack/AEME")
 remotes::install_github("limnotrack/aemetools")

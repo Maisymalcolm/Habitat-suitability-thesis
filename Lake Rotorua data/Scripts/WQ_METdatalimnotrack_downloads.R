@@ -49,3 +49,5 @@ str(met) # Shows the structure of an object
 summary(met)
 
 str(wq)
+
+wq_daily <- readRDS("wq_daily.rds")
