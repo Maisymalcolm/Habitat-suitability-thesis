@@ -31,9 +31,12 @@ wq <- wq %>%
     new_cast = is.na(time_gap) | time_gap > 15,  # adjust threshold: bigger than your normal within-cast interval
     cast_id = cumsum(new_cast)
   )
+## Dropping all readings from the wq dataset that are <1m 
+wq_sub <- dplyr::filter(wq, DptSns >= 1)
+sum(is.na(wq_sub$DOconc)) # checking how many DOconc's are still NA
 
 ## Now tidying up the full wq df ------------------------------
-wq_tidy <- wq %>%
+wq_tidy <- wq_sub %>%
   mutate(depth_m = round(DptSns)) %>%
   filter(depth_m >= 1, depth_m <= 20) %>%
   mutate(depth_diff = abs(DptSns - depth_m)) %>%
@@ -42,6 +45,8 @@ wq_tidy <- wq %>%
   ungroup() %>%
   select(-depth_diff) # keeps the single row per cast/depth combo whose raw depth was nearest to the rounded metre mark — so you're not just grabbing an arbitrary duplicate.
 ## the wq_tidy object now has our tidied data by cast
+
+
 
 ## Creating a new object wq_daily with daily avaergages by depth for Do and temp
 wq_daily <- wq_tidy %>%
@@ -63,6 +68,18 @@ ggplot(wq_daily, aes(x = date, y = depth_m, fill = mean_temp)) +
   scale_fill_viridis_c(option = "inferno", name = "Temp (°C)") +
   labs(
     title = "Water temperature through time and depth",
+    x = "Date",
+    y = "Depth (m)"
+  ) +
+  theme_minimal()
+
+# Heatmap of DO
+ggplot(wq_daily, aes(x = date, y = depth_m, fill = mean_do)) +
+  geom_tile() +
+  scale_y_reverse() +  # so 0m (surface) is at the top, deeper is downward
+  scale_fill_viridis_c(option = "inferno", name = "DO (mg/L") +
+  labs(
+    title = "DO through time and depth",
     x = "Date",
     y = "Depth (m)"
   ) +
