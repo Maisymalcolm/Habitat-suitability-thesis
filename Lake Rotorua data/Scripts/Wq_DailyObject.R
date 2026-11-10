@@ -23,14 +23,19 @@ wq %>% count(DateTime) %>% head()  # see how many rows per timestamp
 ## Need to build a cast_id that groups all rows within a cast together
 
 
-## Using the time gap between the end of one cast and the beginning of the next to sort casts
+## Using the depth reversals between the end of one cast and the beginning of the next to sort cast IDs
+## It will read a new cast ID when a depth reading reverses more than 15m (i.e from 19m back to 1)
+
+min_drop <- 15   # <-- CHANGE THIS: smallest upward jump (in metres) that counts as a new cast
+
 wq <- wq %>%
   arrange(DateTime) %>%
   mutate(
-    time_gap = as.numeric(difftime(DateTime, lag(DateTime), units = "mins")),
-    new_cast = is.na(time_gap) | time_gap > 15,  # adjust threshold: bigger than your normal within-cast interval
-    cast_id = cumsum(new_cast)
+    depth_change = DptSns - lag(DptSns),                    # negative = instrument came back up
+    new_cast     = is.na(depth_change) | depth_change < -min_drop,
+    cast_id      = cumsum(new_cast)
   )
+
 ## Dropping all readings from the wq dataset that are <1m 
 wq_sub <- dplyr::filter(wq, DptSns >= 1)
 sum(is.na(wq_sub$DOconc)) # checking how many DOconc's are still NA

@@ -2,7 +2,7 @@ title: Habitat Suitability Calculations
 
 ## (07.10.26) This script is to calculate livable habitat for kōura in Lake Rotorua using the df wq_daily which is already condensed to having daily averages at depth for temp and DO
 
-## NEED TO AMEND ALL MISSING NA DATA POINTS IN wq_daily
+## NEED TO AMEND MISSING NA DATA POINTS IN wq_daily
 
 # First understand the pattern of missing values at 1m depth (are they all in one specific year?)
 wq_daily %>%
@@ -14,19 +14,6 @@ wq_daily %>%
   filter(depth_m == 1) %>%
   group_by(Year = lubridate::year(date)) %>%
   summarise(pct_missing = mean(is.na(mean_do)) * 100)
-
-## (09.10.26) Using short-gap interpolation ??? Check what to do with these missing values with Deniz.
-library(zoo)
-
-wq_daily <- wq_daily %>%
-  arrange(Lake, Depth, Date) %>%
-  group_by(Lake, Depth) %>%
-  mutate(
-    DO_raw          = if_else(is.nan(DO), NA_real_, DO),
-    DO              = na.approx(DO_raw, x = Date, maxgap = 3, na.rm = FALSE),
-    DO_interpolated = is.na(DO_raw) & !is.na(DO)
-  ) %>%
-  ungroup()
 
 #----------------------------------------------------------------------------------------
 ## Since each depth will receive a suitability score, I need to first define suitability curves for each variable
