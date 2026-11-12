@@ -50,4 +50,3 @@ summary(met)
 
 str(wq)
 
-wq_daily <- readRDS("wq_daily.rds")

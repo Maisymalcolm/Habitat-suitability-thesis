@@ -1,7 +1,7 @@
 HSI calculations with interpolation
 
 ## This script is to calculate livable habitat for kōura in Lake Rotorua using the df wq_daily and short-term linear interpolation
-## <3-7 days. This will be compared against the HSI calculations with raw data to assess defensibility of interpolation.
+## <3, and <7 days, HS raw. 
 
 ## Using short-gap interpolation for water temperature. This adds two columns to wq_daily; <3 days interpolated and <7 days (by depth band)
 install.packages("zoo")  
@@ -19,7 +19,7 @@ wq_daily <- wq_daily %>%
 #----------------------------------------------------------------------------------------
 ## Since each depth will receive a suitability score, I need to first define suitability curves for each variable
 
-# 1) Define suitability curves
+# Define suitability curves
 # This step is creating a separate ramp or buffer on the side of the thresholds. This will influence the assigned scores from 0-1 depending on the 'ramp' from these buffer values
 library(dplyr)
 
@@ -39,7 +39,7 @@ si_temp_ramp <- function(temp, buffer = 2) {
   )
 }
 
-#2) Apply the suitability curves to the wq_daily df (assigns scores to all three temp columns and keeps NAs as NAs )
+# Apply the suitability curves to new wq_scored df (assigns scores to all three temp columns and keeps NAs as NAs )
 wq_scored <- wq_daily %>%
 select(date, depth_m, mean_temp, temp_i3, temp_i7, mean_do) %>%
   mutate(
@@ -49,7 +49,7 @@ select(date, depth_m, mean_temp, temp_i3, temp_i7, mean_do) %>%
     SI_Temp_i7 = if_else(is.na(temp_i7),   NA_real_, si_temp_ramp(temp_i7))
   )
 
-#3) Combine both thresholds into a composite HSI score
+#Combine both thresholds into a composite HSI score
 composite <- function(a, b) {
   case_when(
     !is.na(a) & !is.na(b) ~ pmin(a, b),                       # both present: the minimum
@@ -68,8 +68,12 @@ wq_scored <- wq_scored %>%
 # Save wq_scored df as an object
 saveRDS(wq_scored, 'wq_scored.rds')
 
-## (08.10.26)
-# 4) Join to hypsograph's Area_at_Depth and pecentage of total lake area (at depth)
+
+
+
+
+## ---------------------------------------------------------------------------------------------------------------
+# Join to hypsograph's Area_at_Depth and pecentage of total lake area (at depth)
 wq_joined <- wq_scored %>%
   left_join(hyps_clean %>% select(depth, Area_at_Depth, Pct_of_surface_area),
             by = c("depth_m" = "depth"))
