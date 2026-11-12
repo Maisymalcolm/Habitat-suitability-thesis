@@ -1,30 +1,18 @@
 HSI calculations with interpolation
 
-## (06.11.26) This script is to calculate livable habitat for kōura and kākahi in Lake Rotorua using the df wq_daily and short-term linear interpolation
+## This script is to calculate livable habitat for kōura in Lake Rotorua using the df wq_daily and short-term linear interpolation
 ## <3-7 days. This will be compared against the HSI calculations with raw data to assess defensibility of interpolation.
 
-
-# First understand the pattern of missing values at 1m depth (are they all in one specific year?)
-wq_daily %>%
-  filter(depth_m == 1) %>%
-  summarise(n_rows = n(), n_missing_DO = sum(is.na(mean_do)), pct_missing = mean(is.na(mean_do)) * 100) # 17.2% of the mean_do values are missing, with 54% occuring in 2022 and 28% in 2023.
-
-# Is it random, or concentrated in certain periods/years?
-wq_daily %>%
-  filter(depth_m == 1) %>%
-  group_by(Year = lubridate::year(date)) %>%
-  summarise(pct_missing = mean(is.na(mean_do)) * 100)
-
-## (09.10.26) Using short-gap interpolation ??? Check what to do with these missing values with Deniz.
+## Using short-gap interpolation for water temperature. This adds two columns to wq_daily; <3 days interpolated and <7 days (by depth band)
+install.packages("zoo")  
 library(zoo)
 
 wq_daily <- wq_daily %>%
-  arrange(Lake, Depth, Date) %>%
-  group_by(Lake, Depth) %>%
+  arrange(depth_m, date) %>%
+  group_by(depth_m) %>%
   mutate(
-    DO_raw          = if_else(is.nan(DO), NA_real_, DO),
-    DO              = na.approx(DO_raw, x = Date, maxgap = 3, na.rm = FALSE),
-    DO_interpolated = is.na(DO_raw) & !is.na(DO)
+    temp_i3 = na.approx(mean_temp, maxgap = 3, na.rm = FALSE),
+    temp_i7 = na.approx(mean_temp, maxgap = 7, na.rm = FALSE)
   ) %>%
   ungroup()
 
@@ -51,20 +39,32 @@ si_temp_ramp <- function(temp, buffer = 2) {
   )
 }
 
-#2) Apply the suitability curves to the wq_daily df
+#2) Apply the suitability curves to the wq_daily df (assigns scores to all three temp columns and keeps NAs as NAs )
 wq_scored <- wq_daily %>%
-  select(date, depth_m, mean_temp, mean_do) %>%          # simplify first, per Step 1
+select(date, depth_m, mean_temp, temp_i3, temp_i7, mean_do) %>%
   mutate(
-    SI_DO   = si_do_ramp(mean_do),      
-    SI_Temp = si_temp_ramp(mean_temp)   
+    SI_DO      = if_else(is.na(mean_do),   NA_real_, si_do_ramp(mean_do)),
+    SI_Temp    = if_else(is.na(mean_temp), NA_real_, si_temp_ramp(mean_temp)),
+    SI_Temp_i3 = if_else(is.na(temp_i3),   NA_real_, si_temp_ramp(temp_i3)),
+    SI_Temp_i7 = if_else(is.na(temp_i7),   NA_real_, si_temp_ramp(temp_i7))
   )
 
 #3) Combine both thresholds into a composite HSI score
+composite <- function(a, b) {
+  case_when(
+    !is.na(a) & !is.na(b) ~ pmin(a, b),                       # both present: the minimum
+    (!is.na(a) & a == 0) | (!is.na(b) & b == 0) ~ 0,          # one missing, the other is 0: known unsuitable
+    TRUE ~ NA_real_                                           # both missing, or the present one isn't limiting
+  )
+}
+
 wq_scored <- wq_scored %>%
   mutate(
-    HSI = pmin(SI_DO, SI_Temp)     # limiting-factor approach: worst variable controls habitat quality
-    
-  ) 
+    HSI_raw = composite(SI_Temp,    SI_DO),
+    HSI_i3  = composite(SI_Temp_i3, SI_DO),
+    HSI_i7  = composite(SI_Temp_i7, SI_DO)
+  )
+
 # Save wq_scored df as an object
 saveRDS(wq_scored, 'wq_scored.rds')
 
