@@ -3,7 +3,7 @@ HSI calculations with interpolation
 ## This script is to calculate livable habitat for kōura in Lake Rotorua using the df wq_daily and short-term linear interpolation
 ## <3, and <7 days, HS raw. 
 
-## Using short-gap interpolation for water temperature. This adds two columns to wq_daily; <3 days interpolated and <7 days (by depth band)
+## Using short-gap interpolation for water temperature. Adds two columns to wq_daily: <3 days interpolated and <7 days (by depth band)
 install.packages("zoo")  
 library(zoo)
 
@@ -69,16 +69,12 @@ wq_scored <- wq_scored %>%
 saveRDS(wq_scored, 'wq_scored.rds')
 
 
-
-
-
-## ---------------------------------------------------------------------------------------------------------------
 # Join to hypsograph's Area_at_Depth and pecentage of total lake area (at depth)
 wq_joined <- wq_scored %>%
   left_join(hyps_clean %>% select(depth, Area_at_Depth, Pct_of_surface_area),
             by = c("depth_m" = "depth"))
 
-# 5) Add date and season related columns to wq_joined df
+#Add date and season columns to wq_joined
 wq_joined <- wq_joined %>%
   mutate(date = as.Date(date),
          Day = day(date),
@@ -91,31 +87,137 @@ wq_joined <- wq_joined %>%
            Month %in% c("Sep", "Oct", "Nov") ~ "Spring"
          ))
 saveRDS(wq_joined, 'wq_joined.rds')
-# ----------------------------------------------------------------------------------------------------------------------
-# 6) (12.10.26) Creating daily habitat availability, including weighted usable area 
-# (partial credit to depth bands included i.e weighs differently if score was HS 0.25 vs 0.75) 
-# and area above cut-off (every depth band HS >0.5)
 
-total_area <- sum(hyps_clean$Area_at_Depth, na.rm = TRUE)
 
+
+
+# Calculate habitat suitability using HSI_raw, HSI_i3 & HSI_I7
+
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+
+# ---- 0. Area denominators -------------------------------------------------
+band_area <- wq_joined %>% distinct(depth_m, Area_at_Depth)
+nrow(band_area)                                  # should equal the number of depth bands (20)
+
+assessed_area <- sum(band_area$Area_at_Depth)     # area of the bands that have HSI scores
+total_area    <- sum(hyps_clean$Area_at_Depth, na.rm = TRUE)   # whole lake per the hypsograph
+c(assessed_area = assessed_area, total_area = total_area)    
+
+lake_area     <- 80000000                        # known whole-lake area (m²), cite your source
+
+denominator  <- assessed_area
+coverage_pct <- 100 * assessed_area / lake_area  # report this in the methods -> coverage % = 90.14177 of total lake area
+coverage_pct
+# Choose the denominator for "% of lake area":
+#   assessed_area = % of the scored depth range (max 100%)
+#   total_area    = % of the whole lake (unscored depths count as no habitat)
+denominator <- assessed_area
+
+# Since interpolation didn't add any days, we'll stick to the raw version as the main version
+main_version <- "HSI_raw"
+
+# ---- 1. Daily habitat availability, for all three HSI versions -------------
 daily_habitat <- wq_joined %>%
-  group_by(date) %>%
+  select(date, depth_m, Area_at_Depth, HSI_raw, HSI_i3, HSI_i7) %>%
+  pivot_longer(starts_with("HSI_"), names_to = "version", values_to = "HSI") %>%
+  group_by(version, date) %>%
   summarise(
-    wua       = sum(HSI * Area_at_Depth, na.rm = TRUE),        # weighted usable area
-    suit_area = sum(Area_at_Depth[HSI >= 0.5], na.rm = TRUE),  # area above a suitability cut-off
-    pct_wua   = 100 * wua / total_area,
-    pct_suit  = 100 * suit_area / total_area,
+    all_valid = all(!is.na(HSI)),    # a day is only scored if every depth band has an HSI
+    wua       = if_else(all_valid, sum(HSI * Area_at_Depth), NA_real_),            # weighted usable area
+    suit_area = if_else(all_valid, sum(Area_at_Depth[HSI >= 0.5]), NA_real_),      # area with HSI >= 0.5
     .groups = "drop"
+  ) %>%
+  mutate(
+    pct_wua  = 100 * wua / denominator,
+    pct_suit = 100 * suit_area / denominator,
+    Year  = year(date),
+    Month = month(date, label = TRUE, abbr = TRUE),
+    Season = case_when(
+      Month %in% c("Dec", "Jan", "Feb") ~ "Summer",
+      Month %in% c("Mar", "Apr", "May") ~ "Autumn",
+      Month %in% c("Jun", "Jul", "Aug") ~ "Winter",
+      Month %in% c("Sep", "Oct", "Nov") ~ "Spring"
+    ),
+    Season     = factor(Season, levels = c("Summer", "Autumn", "Winter", "Spring")),
+    SeasonYear = if_else(Month == "Dec", Year + 1, Year)   # December belongs with the following Jan/Feb
   )
 
-# Plot Depth-time heatmap
-ggplot(wq_joined, aes(date, depth_m, fill = HSI)) +
-  geom_raster() +
-  scale_y_reverse() +
-  scale_fill_viridis_c(limits = c(0, 1), name = "HSI") +
-  labs(x = NULL, y = "Depth (m)")
+# Days that are partly scored (some bands NA) are set to NA, so check how many there are
+daily_habitat %>% count(version, all_valid)
 
-# Big purple block in 09/2022 is missing values for a couple months. Need to fix
-#Missing blanks in heat map? Fix
-# Purple blocks at the 1m in 2022/2023 from missing 1m values. Need to tidy
+# ---- 2. Do the three versions differ? -------------------------------------
+daily_habitat %>%
+  select(date, version, pct_wua) %>%
+  pivot_wider(names_from = version, values_from = pct_wua) %>%
+  summarise(
+    valid_days_raw = sum(!is.na(HSI_raw)),
+    valid_days_i3  = sum(!is.na(HSI_i3)),
+    valid_days_i7  = sum(!is.na(HSI_i7)),
+    extra_days_i3  = valid_days_i3 - valid_days_raw,
+    extra_days_i7  = valid_days_i7 - valid_days_raw,
+    max_diff_i3    = max(abs(HSI_i3 - HSI_raw), na.rm = TRUE),   # on days valid in both
+    max_diff_i7    = max(abs(HSI_i7 - HSI_raw), na.rm = TRUE)
+  )
 
+main <- daily_habitat %>% filter(version == main_version)
+
+# ---- 3. Daily habitat over time (gaps show as breaks) ----------------------
+main %>%
+  select(date, `Weighted usable area` = pct_wua, `Area with HSI >= 0.5` = pct_suit) %>%
+  pivot_longer(-date, names_to = "metric", values_to = "pct") %>%
+  ggplot(aes(date, pct, colour = metric)) +
+  geom_line() +
+  labs(x = NULL, y = "% of lake area", colour = NULL,
+       title = "Daily kōura habitat availability") +
+  theme_minimal()
+
+# ---- 4. Habitat by season and year -----------------------------------------
+season_table <- main %>%
+  filter(!is.na(pct_wua)) %>%
+  group_by(SeasonYear, Season) %>%
+  summarise(
+    n_valid_days  = n(),
+    mean_pct_wua  = round(mean(pct_wua), 1),
+    median_pct_wua = round(median(pct_wua), 1),
+    sd_pct_wua    = round(sd(pct_wua), 1),
+    pct_days_zero = round(mean(pct_wua == 0) * 100, 1),   # days with no suitable habitat at all
+    .groups = "drop"
+  )
+print(season_table, n = Inf)
+
+main %>%
+  filter(!is.na(pct_wua)) %>%
+  ggplot(aes(Season, pct_wua, fill = Season)) +
+  geom_boxplot(outlier.size = 0.8) +
+  facet_wrap(~SeasonYear) +
+  labs(x = NULL, y = "Weighted usable area (% of lake area)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# ---- 5. Summer vs winter ---------------------------------------------------
+sw <- main %>% filter(Season %in% c("Summer", "Winter"), !is.na(pct_wua))
+
+ggplot(sw, aes(Season, pct_wua, fill = Season)) +
+  geom_violin(alpha = 0.4) +
+  geom_boxplot(width = 0.15, outlier.shape = NA) +
+  labs(x = NULL, y = "Weighted usable area (% of lake area)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Daily values are autocorrelated, so don't run a test on days.
+# Compare one mean per season per year instead (a paired comparison).
+sw_year <- sw %>%
+  group_by(SeasonYear, Season) %>%
+  summarise(mean_pct = mean(pct_wua), n_days = n(), .groups = "drop")
+
+sw_wide <- sw_year %>%
+  select(-n_days) %>%
+  pivot_wider(names_from = Season, values_from = mean_pct) %>%
+  drop_na() %>%
+  mutate(diff_summer_minus_winter = Summer - Winter)
+
+print(sw_wide)
+# With only ~5 paired years, report the differences themselves; a test has little power.
+# wilcox.test(sw_wide$Summer, sw_wide$Winter, paired = TRUE)

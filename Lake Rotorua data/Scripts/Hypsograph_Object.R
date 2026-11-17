@@ -43,13 +43,13 @@ ggplot(hyps, aes(x = area, y = depth)) +
 
 hypsographdata <- hyps
 
-# Clean summarise hypsograph data to have max depth of 25m, and one row with total area per metre bandwidth
+# Clean summarise hypsograph data to have max depth of 20m, and one row with total area per metre bandwidth
 library(dplyr)
 
 hyps_clean <- hypsographdata %>%
   filter(depth <= 0) %>%                        # keep only true below-surface points
   mutate(depth = abs(depth)) %>%                 # now convert to positive depth
-  filter(depth <= 25) %>%                        # This line sets the max depth to 25m
+  filter(depth <= 20) %>%                        # This line sets the max depth to 20m
   mutate(depth = round(depth)) %>%
   group_by(depth) %>%
   summarise(area = mean(area), .groups = "drop") %>%
