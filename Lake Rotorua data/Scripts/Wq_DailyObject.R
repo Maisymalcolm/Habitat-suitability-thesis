@@ -1,8 +1,10 @@
 title: "test scrip 2 Lake Rotorua Buoy data"
 
 ## This script builds the wq_daily df by assigning a cast ID to each cast
-## and 1 mean DO and mean temp value per depth band (m), so there is 20 readings total per cast per variable
-## This will become integrated with the HSI
+## and 1 DO and temp value per depth band (m) by taking the values closest to the nearest whole value, 
+# so there is 20 readings total per cast per variable
+## These values will be aggregated into daily means by depth band, then 
+# This will become integrated with the HSI
 
 library(tidyverse)  # gives you dplyr, readr, ggplot2 etc. in one go
 
