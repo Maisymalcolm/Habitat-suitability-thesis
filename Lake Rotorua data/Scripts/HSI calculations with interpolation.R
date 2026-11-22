@@ -163,15 +163,48 @@ daily_habitat %>%
 
 main <- daily_habitat %>% filter(version == main_version)
 
-# ---- 3. Daily habitat over time (gaps show as breaks) ----------------------
-main %>%
-  select(date, `Weighted usable area` = pct_wua, `Area with HSI >= 0.5` = pct_suit) %>%
-  pivot_longer(-date, names_to = "metric", values_to = "pct") %>%
-  ggplot(aes(date, pct, colour = metric)) +
-  geom_line() +
-  labs(x = NULL, y = "% of lake area", colour = NULL,
-       title = "Daily kōura habitat availability") +
+
+# HSI through time
+# Uses `main` (daily_habitat filtered to your chosen HSI version).
+# pct_wua / 100 is the area-weighted mean HSI across depth bands, a 0-1 score for the whole lake.
+
+# ---- Plot 1: one line through time, summers shaded -------------------------
+summer_bands <- tibble(SeasonYear = sort(unique(main$SeasonYear))) %>%
+  mutate(
+    xmin = pmax(as.Date(paste0(SeasonYear - 1, "-12-01")), min(main$date)),
+    xmax = pmin(as.Date(paste0(SeasonYear, "-03-01")), max(main$date))
+  ) %>%
+  filter(xmin < xmax)
+
+ggplot(main, aes(date, pct_wua / 100)) +
+  geom_rect(
+    data = summer_bands,
+    aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+    inherit.aes = FALSE, fill = "orange", alpha = 0.15
+  ) +
+  geom_line(colour = "steelblue", linewidth = 0.5) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0.01, 0)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
+  labs(
+    x = NULL,
+    y = "Daily habitat suitability index",
+  ) +
+    theme_minimal() +
+  theme(panel.grid = element_blank())
+
+# ---- Plot 2 (optional): one panel per year, coloured by season --------------
+ggplot(main, aes(date, pct_wua / 100, colour = Season)) +
+  geom_point(size = 0.7) +
+  facet_wrap(~Year, ncol = 1, scales = "free_x") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  scale_y_continuous(limits = c(0, 1)) +
+  labs(x = NULL, y = "Daily HSI (area-weighted mean, 0 to 1)", colour = NULL) +
   theme_minimal()
+
+
+
+
+
 
 # ---- 4. Habitat by season and year -----------------------------------------
 season_table <- main %>%
