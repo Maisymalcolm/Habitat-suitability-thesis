@@ -168,7 +168,7 @@ main <- daily_habitat %>% filter(version == main_version)
 # Uses `main` (daily_habitat filtered to your chosen HSI version).
 # pct_wua / 100 is the area-weighted mean HSI across depth bands, a 0-1 score for the whole lake.
 
-# ---- Plot 1: one line through time, summers shaded -------------------------
+# ---- Plot 1: one line through time, summers shaded 
 summer_bands <- tibble(SeasonYear = sort(unique(main$SeasonYear))) %>%
   mutate(
     xmin = pmax(as.Date(paste0(SeasonYear - 1, "-12-01")), min(main$date)),
@@ -192,7 +192,7 @@ ggplot(main, aes(date, pct_wua / 100)) +
     theme_minimal() +
   theme(panel.grid = element_blank())
 
-# ---- Plot 2 (optional): one panel per year, coloured by season --------------
+# ---- Plot 2 one panel per year, coloured by season --------------
 ggplot(main, aes(date, pct_wua / 100, colour = Season)) +
   geom_point(size = 0.7) +
   facet_wrap(~Year, ncol = 1, scales = "free_x") +
@@ -202,32 +202,39 @@ ggplot(main, aes(date, pct_wua / 100, colour = Season)) +
   theme_minimal()
 
 
+## plotting weighted usable area through time (same as plot one but changed to WUA)
+ggplot(main, aes(date, pct_wua)) +
+  geom_rect(
+    data = summer_bands,
+    aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf),
+    inherit.aes = FALSE, fill = "orange", alpha = 0.15
+  ) +
+  geom_line(colour = "steelblue", linewidth = 0.5) +
+  scale_y_continuous(limits = c(0, 100), expand = c(0.01, 0)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
+  labs(
+    x = NULL,
+    y = "Weighted usable lake area (%)",
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
 
 
-
-
-# ---- 4. Habitat by season and year -----------------------------------------
-season_table <- main %>%
-  filter(!is.na(pct_wua)) %>%
+# Calculate valid days by season and year
+coverage_table <- main %>%
   group_by(SeasonYear, Season) %>%
   summarise(
-    n_valid_days  = n(),
-    mean_pct_wua  = round(mean(pct_wua), 1),
-    median_pct_wua = round(median(pct_wua), 1),
-    sd_pct_wua    = round(sd(pct_wua), 1),
-    pct_days_zero = round(mean(pct_wua == 0) * 100, 1),   # days with no suitable habitat at all
+    days_in_record = n(),
+    valid_days     = sum(!is.na(pct_wua)),
+    pct_valid      = round(100 * valid_days / days_in_record, 1),
     .groups = "drop"
   )
-print(season_table, n = Inf)
+print(coverage_table, n = Inf)
+write.csv(coverage_table, "valid_days_by_season.csv", row.names = FALSE)
 
-main %>%
-  filter(!is.na(pct_wua)) %>%
-  ggplot(aes(Season, pct_wua, fill = Season)) +
-  geom_boxplot(outlier.size = 0.8) +
-  facet_wrap(~SeasonYear) +
-  labs(x = NULL, y = "Weighted usable area (% of lake area)") +
-  theme_minimal() +
-  theme(legend.position = "none")
+read.csv(valid_days_by_season.csv)
+# NEED TO DOUBLE CHECK THAT VALID DAYS ARE THE SAME AS DAY WHERE ALL BAND READINGS ARE AVAILABLE
+
 
 # ---- 5. Summer vs winter ---------------------------------------------------
 sw <- main %>% filter(Season %in% c("Summer", "Winter"), !is.na(pct_wua))
