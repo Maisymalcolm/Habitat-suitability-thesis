@@ -92,13 +92,11 @@ daily_habitat <- wq_joined %>%
   )
 
 # Plot Depth-time heatmap
-ggplot(wq_joined, aes(date, depth_m, fill = HSI)) +
+ggplot(wq_joined, aes(date, depth_m, fill = HSI_raw)) +
   geom_raster() +
   scale_y_reverse() +
   scale_fill_viridis_c(limits = c(0, 1), name = "HSI") +
   labs(x = NULL, y = "Depth (m)")
 
-# Big purple block in 09/2022 is missing values for a couple months. Need to fix
-#Missing blanks in heat map? Fix
-# Purple blocks at the 1m in 2022/2023 from missing 1m values. Need to tidy
+
 

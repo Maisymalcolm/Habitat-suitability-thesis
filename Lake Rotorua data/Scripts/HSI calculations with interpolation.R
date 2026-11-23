@@ -89,8 +89,6 @@ wq_joined <- wq_joined %>%
 saveRDS(wq_joined, 'wq_joined.rds')
 
 
-
-
 # Calculate habitat suitability using HSI_raw, HSI_i3 & HSI_I7
 
 library(tidyr)
@@ -192,13 +190,13 @@ ggplot(main, aes(date, pct_wua / 100)) +
     theme_minimal() +
   theme(panel.grid = element_blank())
 
-# ---- Plot 2 one panel per year, coloured by season --------------
+# Plotting daily HSI, one panel per year, coloured by season 
 ggplot(main, aes(date, pct_wua / 100, colour = Season)) +
   geom_point(size = 0.7) +
   facet_wrap(~Year, ncol = 1, scales = "free_x") +
   scale_x_date(date_breaks = "1 month", date_labels = "%b") +
   scale_y_continuous(limits = c(0, 1)) +
-  labs(x = NULL, y = "Daily HSI (area-weighted mean, 0 to 1)", colour = NULL) +
+  labs(x = NULL, y = "Daily HSI", colour = NULL) +
   theme_minimal()
 
 
@@ -234,30 +232,19 @@ write.csv(coverage_table, "valid_days_by_season.csv", row.names = FALSE)
 
 read.csv(valid_days_by_season.csv)
 # NEED TO DOUBLE CHECK THAT VALID DAYS ARE THE SAME AS DAY WHERE ALL BAND READINGS ARE AVAILABLE
+# Getting numbers of missing valid days by year/season
+# Overall coverage
+coverage_table %>%
+  summarise(pct_valid_overall = round(100 * sum(valid_days) / sum(days_in_record), 1))
+
+# Coverage by season, pooled across years
+coverage_table %>%
+  group_by(Season) %>%
+  summarise(pct_valid = round(100 * sum(valid_days) / sum(days_in_record), 1))
+
+# The five lowest-coverage season-years
+coverage_table %>% arrange(pct_valid) %>% slice_head(n = 5)
 
 
-# ---- 5. Summer vs winter ---------------------------------------------------
-sw <- main %>% filter(Season %in% c("Summer", "Winter"), !is.na(pct_wua))
 
-ggplot(sw, aes(Season, pct_wua, fill = Season)) +
-  geom_violin(alpha = 0.4) +
-  geom_boxplot(width = 0.15, outlier.shape = NA) +
-  labs(x = NULL, y = "Weighted usable area (% of lake area)") +
-  theme_minimal() +
-  theme(legend.position = "none")
 
-# Daily values are autocorrelated, so don't run a test on days.
-# Compare one mean per season per year instead (a paired comparison).
-sw_year <- sw %>%
-  group_by(SeasonYear, Season) %>%
-  summarise(mean_pct = mean(pct_wua), n_days = n(), .groups = "drop")
-
-sw_wide <- sw_year %>%
-  select(-n_days) %>%
-  pivot_wider(names_from = Season, values_from = mean_pct) %>%
-  drop_na() %>%
-  mutate(diff_summer_minus_winter = Summer - Winter)
-
-print(sw_wide)
-# With only ~5 paired years, report the differences themselves; a test has little power.
-# wilcox.test(sw_wide$Summer, sw_wide$Winter, paired = TRUE)
