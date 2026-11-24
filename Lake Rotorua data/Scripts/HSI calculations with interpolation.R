@@ -161,6 +161,12 @@ daily_habitat %>%
 
 main <- daily_habitat %>% filter(version == main_version)
 
+# Plotting HSI depth-time heatmap
+ggplot(wq_joined, aes(date, depth_m, fill = HSI_raw)) +
+  geom_raster() +
+  scale_y_reverse() +
+  scale_fill_viridis_c(limits = c(0, 1), name = "HSI", na.value = "white") +
+  labs(x = NULL, y = "Depth (m)")
 
 # HSI through time
 # Uses `main` (daily_habitat filtered to your chosen HSI version).
@@ -258,7 +264,7 @@ ggplot(wq_joined, aes(date, depth_m, fill = mean_do)) +
   scale_fill_viridis_b(
     name = "DO (mg/L)",
     breaks = c(1,2,3,4, do_threshold),
-    na.value = "grey90"
+    na.value = "white"
   ) +
   labs(
     x = NULL, y = "Depth (m)",
