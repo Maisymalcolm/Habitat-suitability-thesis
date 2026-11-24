@@ -247,4 +247,23 @@ coverage_table %>% arrange(pct_valid) %>% slice_head(n = 5)
 
 
 
+# Investigating summer hypoxia poriods
+# Plot a depth-time heatmap of DO 
+do_threshold <- 5  
 
+ggplot(wq_joined, aes(date, depth_m, fill = mean_do)) +
+  geom_raster() +
+  scale_y_reverse() +
+  scale_x_date(date_breaks = "2 year", date_labels = "%b %Y") +
+  scale_fill_viridis_b(
+    name = "DO (mg/L)",
+    breaks = c(1,2,3,4, do_threshold),
+    na.value = "grey90"
+  ) +
+  labs(
+    x = NULL, y = "Depth (m)",
+    title = NULL,
+    subtitle = NULL
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
