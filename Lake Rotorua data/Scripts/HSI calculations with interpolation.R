@@ -273,3 +273,141 @@ ggplot(wq_joined, aes(date, depth_m, fill = mean_do)) +
   ) +
   theme_minimal() +
   theme(panel.grid = element_blank())
+
+# Hypoxia investigation plots 
+# Settings (edit as needed)
+do_threshold  <- 5            # mg/L, your kōura HSI cut-off
+deep_depths   <- c(10, 15, 20) # depths used in plots 3 and 4
+shallow_depth <- 1            # shallow depth for the stratification index (plot 3)
+deep_depth    <- 20           # deep depth for the stratification index (plot 3)
+
+assessed_area <- wq_joined %>%
+  distinct(depth_m, Area_at_Depth) %>%
+  summarise(a = sum(Area_at_Depth)) %>%
+  pull(a)
+max_depth <- max(wq_joined$depth_m)
+
+# ---- Daily hypoxic area and boundary depth (used by plots 1 and 2) ----------
+# A day is scored only if every depth band has a DO value; otherwise it stays NA
+hypoxic_area <- wq_joined %>%
+  group_by(date) %>%
+  summarise(
+    all_valid  = all(!is.na(mean_do)),
+    pct_below2 = 100 * sum(Area_at_Depth[mean_do < 2]) / assessed_area,
+    pct_2to5   = 100 * sum(Area_at_Depth[mean_do >= 2 & mean_do < do_threshold]) / assessed_area,
+    # shallowest depth with DO below the threshold; max_depth + 1 means no hypoxia in range
+    top_hypoxic_depth = if_else(
+      all_valid,
+      min(c(depth_m[mean_do < do_threshold], max_depth + 1)),
+      NA_real_
+    ),
+    .groups = "drop"
+  ) %>%
+  mutate(across(c(pct_below2, pct_2to5), ~ if_else(all_valid, .x, NA_real_)))
+
+# ---- Plot 1: hypoxic area over time, by severity ----------------------------
+hypoxic_area %>%
+  select(date, `2 to 5 mg/L` = pct_2to5, `Below 2 mg/L` = pct_below2) %>%
+  pivot_longer(-date, names_to = "severity", values_to = "pct") %>%
+  mutate(severity = factor(severity, levels = c("2 to 5 mg/L", "Below 2 mg/L"))) %>%
+  ggplot(aes(date, pct, fill = severity)) +
+  geom_col(width = 1, na.rm = TRUE) +
+  scale_fill_manual(values = c("2 to 5 mg/L" = "#f4a261", "Below 2 mg/L" = "#9b2226")) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
+  labs(
+    x = NULL,
+    y = "% of assessed lake area (1-20 m) with low DO",
+    fill = "DO",
+    title = "Area of the lake with low dissolved oxygen",
+    subtitle = "Blank = no score (missing data in at least one depth band)"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
+
+# ---- Plot 2: depth of the hypoxic boundary ----------------------------------
+ggplot(hypoxic_area, aes(date, top_hypoxic_depth)) +
+  geom_line(colour = "firebrick", na.rm = TRUE) +
+  scale_y_reverse(breaks = seq(0, 20, 5)) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
+  labs(
+    x = NULL,
+    y = "Shallowest depth with DO below 5 mg/L (m)",
+    title = "Depth of the hypoxic boundary",
+    subtitle = "Bottom of the plot = no hypoxia within the assessed depths; gaps = missing data"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
+
+# ---- Plot 3: deep DO alongside a stratification index -----------------------
+panel_do   <- "DO (mg/L)"
+panel_temp <- "Temperature difference (°C)"
+panel_levels <- c(panel_do, panel_temp)
+
+do_deep <- wq_joined %>%
+  filter(depth_m %in% deep_depths) %>%
+  transmute(date, panel = panel_do, series = paste(depth_m, "m"), value = mean_do)
+
+strat <- wq_joined %>%
+  filter(depth_m %in% c(shallow_depth, deep_depth)) %>%
+  select(date, depth_m, mean_temp) %>%
+  pivot_wider(names_from = depth_m, values_from = mean_temp, names_prefix = "t") %>%
+  transmute(
+    date,
+    panel = panel_temp,
+    value = .data[[paste0("t", shallow_depth)]] - .data[[paste0("t", deep_depth)]]
+  )
+
+threshold_line <- tibble(panel = panel_do, yint = do_threshold)
+
+ggplot() +
+  geom_line(data = do_deep, aes(date, value, colour = series), na.rm = TRUE) +
+  geom_line(data = strat, aes(date, value), colour = "grey30", na.rm = TRUE) +
+  geom_hline(data = threshold_line, aes(yintercept = yint), linetype = "dashed") +
+  facet_grid(factor(panel, levels = panel_levels) ~ ., scales = "free_y") +
+  scale_colour_viridis_d(name = "Depth", end = 0.85) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
+  labs(
+    x = NULL, y = NULL,
+    title = "Deep dissolved oxygen and thermal stratification",
+    subtitle = paste0("Dashed line = ", do_threshold, " mg/L; temperature difference = ",
+                      shallow_depth, " m minus ", deep_depth, " m")
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
+
+# ---- Plot 4: hypoxia exposure per summer ------------------------------------
+# Longest run of consecutive TRUE values; NA (missing) ends a run
+longest_run <- function(x) {
+  r <- rle(x %in% TRUE)
+  if (any(r$values)) max(r$lengths[r$values]) else 0L
+}
+
+exposure <- wq_joined %>%
+  filter(depth_m %in% deep_depths, month(date) %in% c(12, 1, 2)) %>%
+  mutate(SeasonYear = if_else(month(date) == 12, year(date) + 1, year(date))) %>%
+  arrange(depth_m, date) %>%
+  group_by(depth_m, SeasonYear) %>%
+  summarise(
+    days_in_summer     = n(),
+    valid_days         = sum(!is.na(mean_do)),
+    hypoxic_days       = sum(mean_do < do_threshold, na.rm = TRUE),
+    longest_event_days = longest_run(mean_do < do_threshold),
+    .groups = "drop"
+  )
+
+print(exposure, n = Inf)
+write.csv(exposure, "hypoxia_exposure_by_summer.csv", row.names = FALSE)
+
+ggplot(exposure, aes(factor(SeasonYear), hypoxic_days, fill = factor(depth_m))) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = valid_days), position = position_dodge(width = 0.9),
+            vjust = -0.4, size = 3) +
+  scale_fill_viridis_d(name = "Depth (m)", end = 0.85) +
+  labs(
+    x = "Summer (Dec to Feb, labelled by the year it ends in)",
+    y = "Days with DO below 5 mg/L",
+    title = "Hypoxia exposure per summer",
+    subtitle = "Numbers above bars = days with valid DO data"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank())
