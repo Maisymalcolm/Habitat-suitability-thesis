@@ -253,7 +253,7 @@ coverage_table %>% arrange(pct_valid) %>% slice_head(n = 5)
 
 
 
-# Investigating summer hypoxia poriods
+# ------ Investigating summer hypoxia periods ---------
 # Plot a depth-time heatmap of DO 
 do_threshold <- 5  
 
@@ -275,7 +275,7 @@ ggplot(wq_joined, aes(date, depth_m, fill = mean_do)) +
   theme(panel.grid = element_blank())
 
 # Hypoxia investigation plots 
-# Settings (edit as needed)
+# Set parameters
 do_threshold  <- 5            # mg/L, your kōura HSI cut-off
 deep_depths   <- c(10, 15, 20) # depths used in plots 3 and 4
 shallow_depth <- 1            # shallow depth for the stratification index (plot 3)
@@ -287,7 +287,7 @@ assessed_area <- wq_joined %>%
   pull(a)
 max_depth <- max(wq_joined$depth_m)
 
-# ---- Daily hypoxic area and boundary depth (used by plots 1 and 2) ----------
+# Daily hypoxic area and boundary depth (used by plots 1 and 2) 
 # A day is scored only if every depth band has a DO value; otherwise it stays NA
 hypoxic_area <- wq_joined %>%
   group_by(date) %>%
@@ -368,9 +368,8 @@ ggplot() +
   scale_x_date(date_breaks = "1 year", date_labels = "%b %Y") +
   labs(
     x = NULL, y = NULL,
-    title = "Deep dissolved oxygen and thermal stratification",
-    subtitle = paste0("Dashed line = ", do_threshold, " mg/L; temperature difference = ",
-                      shallow_depth, " m minus ", deep_depth, " m")
+    title = NULL,
+    subtitle = NULL
   ) +
   theme_minimal() +
   theme(panel.grid = element_blank())
@@ -404,10 +403,10 @@ ggplot(exposure, aes(factor(SeasonYear), hypoxic_days, fill = factor(depth_m))) 
             vjust = -0.4, size = 3) +
   scale_fill_viridis_d(name = "Depth (m)", end = 0.85) +
   labs(
-    x = "Summer (Dec to Feb, labelled by the year it ends in)",
+    x = "Summer",
     y = "Days with DO below 5 mg/L",
-    title = "Hypoxia exposure per summer",
-    subtitle = "Numbers above bars = days with valid DO data"
+    title = NULL,
+    subtitle = NULL
   ) +
   theme_minimal() +
   theme(panel.grid = element_blank())
